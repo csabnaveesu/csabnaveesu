@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Indicators - Naz Thamir</title>
+</head>
+<body>
+  <h1>PineTS Demo</h1>
+  <p><a href="index.html">Home</a></p>
+  <p>Pine Script indicators (EMA 9 / EMA 21) computed in the browser by <a href="https://github.com/LuxAlgo/PineTS">PineTS</a> on generated sample data.</p>
+  <canvas id="chart" width="800" height="360"></canvas>
+  <p id="status">Running...</p>
+
+  <script src="js/pinets.min.browser.js"></script>
+  <script>
+    // Deterministic pseudo-random walk so the demo needs no network access
+    function sampleCandles(n) {
+      let seed = 42, price = 100, t = Date.UTC(2024, 0, 1);
+      const rnd = () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296;
+      const out = [];
+      for (let i = 0; i < n; i++) {
+        const open = price;
+        const close = open + (rnd() - 0.5) * 4;
+        const high = Math.max(open, close) + rnd() * 2;
+        const low = Math.min(open, close) - rnd() * 2;
+        out.push({ open, high, low, close, volume: 1000 + rnd() * 500, openTime: t, closeTime: t + 86399999 });
+        price = close;
+        t += 86400000;
+      }
+      return out;
+    }
+
+    const script = `
+//@version=6
+indicator("EMA Cross")
+plot(close, "Close")
+plot(ta.ema(close, 9), "Fast")
+plot(ta.ema(close, 21), "Slow")
+`;
+
+    function draw(plots) {
+      const ctx = document.getElementById('chart').getContext('2d');
+      const { width: w, height: h } = ctx.canvas;
+      const series = [['Close', '#999'], ['Fast', 'blue'], ['Slow', 'red']]
+        .map(([name, color]) => ({ name, color, data: plots[name].data.map(d => d.value) }));
+      const all = series.flatMap(s => s.data).filter(Number.isFinite);
+      const min = Math.min(...all), max = Math.max(...all);
+      ctx.clearRect(0, 0, w, h);
+      series.forEach((s, k) => {
+        ctx.strokeStyle = s.color;
+        ctx.beginPath();
+        let started = false;
+        s.data.forEach((v, i) => {
+          if (!Number.isFinite(v)) return;
+          const x = (i / (s.data.length - 1)) * w;
+          const y = h - ((v - min) / (max - min)) * h;
+          started ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+          started = true;
+        });
+        ctx.stroke();
+        ctx.fillStyle = s.color;
+        ctx.fillText(s.name, 8 + k * 60, 14);
+      });
+    }
+
+    (async () => {
+      const status = document.getElementById('status');
+      try {
+        const pineTS = new PineTSLib.PineTS(sampleCandles(120));
+        const { plots } = await pineTS.run(script);
+        draw(plots);
+        status.textContent = 'Computed ' + plots['Fast'].data.length + ' bars.';
+      } catch (e) {
+        status.textContent = 'Error: ' + e.message;
+        console.error(e);
+      }
+    })();
+  </script>
+</body>
+</html>
