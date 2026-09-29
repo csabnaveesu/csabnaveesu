@@ -1,5 +1,9 @@
 {
   "dependencies": {
     "pinets": "^0.10.0"
-  }
+  },
+  "scripts": {
+    "pine": "node pine/run.mjs"
+  },
+  "type": "module"
 }
